@@ -1,0 +1,313 @@
+--// DEMON HUB - ACTUAL EXECUTOR BUILD (FULLY FIXED)
+--// Target: Delta Executor / Custom Injection Environments
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+local VirtualUser = game:GetService("VirtualUser")
+
+local player = Players.LocalPlayer
+
+--==================================================
+-- CONFIG & STATE
+--==================================================
+local Config = {
+    AntiAFK = true,
+    WalkSpeed = 16,
+    JumpPower = 50
+}
+
+--==================================================
+-- SECURITY & EXECUTOR ENVIRONMENT CHECK
+--==================================================
+local getGuiParent = function()
+    local success, coreGui = pcall(function()
+        return game:GetService("CoreGui")
+    end)
+    if success and coreGui then
+        return coreGui
+    else
+        return player:WaitForChild("PlayerGui")
+    end
+end
+
+local targetParent = getGuiParent()
+
+-- Duplicate Cleanup: Purane UI ko check karke remove karna
+for _, oldGui in ipairs(targetParent:GetChildren()) do
+    if oldGui.Name == "DemonHubPremium_Actual" then
+        oldGui:Destroy()
+    end
+end
+
+--==================================================
+-- GUI INITIALIZATION
+--==================================================
+local gui = Instance.new("ScreenGui")
+gui.Name = "DemonHubPremium_Actual"
+gui.ResetOnSpawn = false
+gui.Parent = targetParent
+
+-- Floating Toggle Button
+local openButton = Instance.new("TextButton")
+openButton.Size = UDim2.fromOffset(55, 55)
+openButton.Position = UDim2.new(0, 20, 0.5, -30)
+openButton.Text = "👿"
+openButton.TextSize = 28
+openButton.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+openButton.TextColor3 = Color3.new(1, 1, 1)
+openButton.Parent = gui
+
+local btnCorner = Instance.new("UICorner", openButton)
+btnCorner.CornerRadius = UDim.new(1, 0)
+
+-- Main Interface Frame
+local main = Instance.new("Frame")
+main.Size = UDim2.fromOffset(700, 450)
+main.Position = UDim2.new(0.5, -350, 0.5, -225)
+main.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+main.Visible = true
+main.Parent = gui
+
+Instance.new("UICorner", main).CornerRadius = UDim.new(0, 12)
+
+-- Header
+local header = Instance.new("TextLabel")
+header.Size = UDim2.new(1, 0, 0, 55)
+header.BackgroundColor3 = Color3.fromRGB(30, 30, 36)
+header.Text = "👿 DEMON HUB PREMIUM"
+header.TextColor3 = Color3.new(1, 1, 1)
+header.TextSize = 22
+header.Font = Enum.Font.GothamBold
+header.Parent = main
+
+-- Close Window Button
+local close = Instance.new("TextButton")
+close.Size = UDim2.fromOffset(45, 40)
+close.Position = UDim2.new(1, -50, 0, 7)
+close.Text = "×"
+close.TextSize = 28
+close.BackgroundTransparency = 1
+close.TextColor3 = Color3.new(1, 1, 1)
+close.Parent = main
+
+-- Sidebar & Navigation
+local sidebar = Instance.new("Frame")
+sidebar.Size = UDim2.new(0, 150, 1, -55)
+sidebar.Position = UDim2.new(0, 0, 0, 55)
+sidebar.BackgroundColor3 = Color3.fromRGB(23, 23, 28)
+sidebar.Parent = main
+
+local sidebarLayout = Instance.new("UIListLayout")
+sidebarLayout.Padding = UDim.new(0, 5)
+sidebarLayout.Parent = sidebar
+
+local content = Instance.new("Frame")
+content.Size = UDim2.new(1, -150, 1, -55)
+content.Position = UDim2.new(0, 150, 0, 55)
+content.BackgroundTransparency = 1
+content.Parent = main
+
+--==================================================
+-- DRAG & TOUCH FUNCTIONALITY (Mobile/PC Friendly)
+--==================================================
+local dragging, dragStart, startPos
+
+header.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = main.Position
+
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        main.Position = UDim2.new(
+            startPos.X.Scale, startPos.X.Offset + delta.X,
+            startPos.Y.Scale, startPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+openButton.MouseButton1Click:Connect(function()
+    main.Visible = not main.Visible
+end)
+
+close.MouseButton1Click:Connect(function()
+    main.Visible = false
+end)
+
+--==================================================
+-- TABS & HELPERS SYSTEM
+--==================================================
+local pages = {}
+
+local function showPage(pageName)
+    for name, page in pairs(pages) do
+        page.Visible = (name == pageName)
+    end
+end
+
+local function createPage(name)
+    local page = Instance.new("ScrollingFrame")
+    page.Name = name
+    page.Size = UDim2.new(1, -20, 1, -20)
+    page.Position = UDim2.fromOffset(10, 10)
+    page.BackgroundTransparency = 1
+    page.BorderSizePixel = 0
+    page.ScrollBarThickness = 5
+    page.CanvasSize = UDim2.new(0, 0, 0, 0)
+    page.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    page.Visible = false
+    page.Parent = content
+
+    local layout = Instance.new("UIListLayout")
+    layout.Padding = UDim.new(0, 8)
+    layout.Parent = page
+
+    pages[name] = page
+
+    -- Sidebar Switch Button
+    local sideBtn = Instance.new("TextButton")
+    sideBtn.Size = UDim2.new(1, 0, 0, 40)
+    sideBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
+    sideBtn.TextColor3 = Color3.new(1, 1, 1)
+    sideBtn.Text = name
+    sideBtn.TextSize = 14
+    sideBtn.Font = Enum.Font.GothamMedium
+    sideBtn.Parent = sidebar
+    
+    Instance.new("UICorner", sideBtn).CornerRadius = UDim.new(0, 4)
+    sideBtn.MouseButton1Click:Connect(function()
+        showPage(name)
+    end)
+
+    return page
+end
+
+local function button(parent, text, callback)
+    local b = Instance.new("TextButton")
+    b.Size = UDim2.new(1, -10, 0, 42)
+    b.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
+    b.TextColor3 = Color3.new(1, 1, 1)
+    b.Text = text
+    b.TextSize = 15
+    b.Font = Enum.Font.Gotham
+    b.Parent = parent
+
+    Instance.new("UICorner", b).CornerRadius = UDim.new(0, 7)
+    b.MouseButton1Click:Connect(function()
+        if callback then callback() end
+    end)
+    return b
+end
+
+local function label(parent, text)
+    local l = Instance.new("TextLabel")
+    l.Size = UDim2.new(1, -10, 0, 35)
+    l.BackgroundTransparency = 1
+    l.Text = text
+    l.TextColor3 = Color3.new(1, 1, 1)
+    l.TextSize = 16
+    l.Font = Enum.Font.GothamBold
+    l.TextXAlignment = Enum.TextXAlignment.Left
+    l.Parent = parent
+    return l
+end
+
+--==================================================
+-- CHARACTER PROPERTIES CONTROLLER (Walkspeed / Jump Fix)
+--==================================================
+local function configureCharacter(character)
+    local humanoid = character:WaitForChild("Humanoid", 5)
+    if humanoid then
+        humanoid.WalkSpeed = Config.WalkSpeed
+        humanoid.JumpPower = Config.JumpPower
+        
+        -- Bypass system: Agar koi game script speed change kare toh yeh wapas fix kar dega
+        humanoid:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
+            if humanoid.WalkSpeed ~= Config.WalkSpeed then
+                humanoid.WalkSpeed = Config.WalkSpeed
+            end
+        end)
+        humanoid:GetPropertyChangedSignal("JumpPower"):Connect(function()
+            if humanoid.JumpPower ~= Config.JumpPower then
+                humanoid.JumpPower = Config.JumpPower
+            end
+        end)
+    end
+end
+
+player.CharacterAdded:Connect(configureCharacter)
+if player.Character then configureCharacter(player.Character) end
+
+--==================================================
+-- TELEPORT ENGINE
+--==================================================
+local teleportPage = createPage("Teleport")
+label(teleportPage, "📍 TELEPORT ENGINE")
+
+local function teleportToPart(name)
+    local char = player.Character or player.CharacterAdded:Wait()
+    local root = char:WaitForChild("HumanoidRootPart", 5)
+
+    if not root then return end
+
+    local target = workspace:FindFirstChild(name, true)
+    if target then
+        if target:IsA("BasePart") then
+            root.CFrame = target.CFrame + Vector3.new(0, 4, 0)
+        elseif target:IsA("Model") then
+            local part = target.PrimaryPart or target:FindFirstChildWhichIsA("BasePart")
+            if part then
+                root.CFrame = part.CFrame + Vector3.new(0, 4, 0)
+            end
+        end
+    end
+end
+
+button(teleportPage, "🏠 Spawn", function() teleportToPart("Spawn") end)
+button(teleportPage, "🌾 Farm Area", function() teleportToPart("FarmArea") end)
+button(teleportPage, "⚔️ Arena", function() teleportToPart("Arena") end)
+button(teleportPage, "🛒 Shop", function() teleportToPart("Shop") end)
+
+--==================================================
+-- LIVE EGG SCANNER ENGINE
+--==================================================
+local eggPage = createPage("Eggs")
+label(eggPage, "🥚 REALTIME WORKSPACE SCANNER")
+
+local eggStatus = label(eggPage, "Scanning Target Layout...")
+local eggList = Instance.new("Frame")
+eggList.Size = UDim2.new(1, -10, 0, 0)
+eggList.AutomaticSize = Enum.AutomaticSize.Y
+eggList.BackgroundTransparency = 1
+eggList.Parent = eggPage
+
+local eggLayout = Instance.new("UIListLayout")
+eggLayout.Padding = UDim.new(0, 6)
+eggLayout.Parent = eggList
+
+local function refreshEggs()
+    for _, child in ipairs(eggList:GetChildren()) do
+        if child:IsA("TextButton") then child:Destroy() end
+    end
+
+    local folder = workspace:FindFirstChild("Eggs") or workspace:FindFirstChild("EggFolder", true)
+    if not folder then
+        eggStatus.Text = "❌ Workspace.Eggs folder structure not found"
+        return
+    end
+
+    local count = 0
+    for _, egg in ipairs(folder:GetChildren()) do
+        count = count + 1
+        button(eggList, "Go to " .. egg.Name, function()
